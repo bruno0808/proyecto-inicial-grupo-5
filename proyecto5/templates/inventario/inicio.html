@@ -1,0 +1,95 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Control de inventario</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 0 20px;
+            background: #f5f6fa;
+            color: #222;
+        }
+
+        form, .producto {
+            background: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 10px;
+        }
+
+        input {
+            display: block;
+            width: 100%;
+            box-sizing: border-box;
+            padding: 10px;
+            margin: 6px 0 14px;
+        }
+
+        button {
+            padding: 10px 18px;
+            cursor: pointer;
+        }
+
+        .alerta {
+            color: #b42318;
+            font-weight: bold;
+        }
+
+        .normal {
+            color: #167647;
+        }
+    </style>
+</head>
+<body>
+    <h1>Control de inventario</h1>
+    <p>Registra productos y predice cuándo se agotarán.</p>
+
+    <h2>Agregar producto</h2>
+
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Agregar producto</button>
+    </form>
+
+    <h2>Mis productos</h2>
+
+    {% for producto in productos %}
+        <div class="producto">
+            <h3>{{ producto.nombre }}</h3>
+
+            <p>Stock actual: {{ producto.stock }}</p>
+            <p>Consumo diario: {{ producto.consumo_diario }}</p>
+            <p>Frecuencia de compra:
+                cada {{ producto.frecuencia_compra }} días
+            </p>
+            <p>Hora promedio:
+                {{ producto.hora_promedio_compra|time:"H:i" }}
+            </p>
+
+            {% if producto.dias_restantes is not None %}
+                <p>
+                    Días hasta agotarse:
+                    {{ producto.dias_restantes|floatformat:1 }}
+                </p>
+
+                {% if producto.cerca_de_agotarse %}
+                    <p class="alerta">
+                        ⚠️ ¡Este producto está cerca de agotarse!
+                    </p>
+                {% else %}
+                    <p class="normal">Stock suficiente por ahora</p>
+                {% endif %}
+            {% else %}
+                <p>No se puede calcular la predicción.</p>
+            {% endif %}
+        </div>
+    {% empty %}
+        <p>Aún no has agregado productos.</p>
+    {% endfor %}
+</body>
+</html>
