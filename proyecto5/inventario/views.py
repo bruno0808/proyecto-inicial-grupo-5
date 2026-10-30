@@ -1,4 +1,4 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from .models import Producto
 from .forms import ProductoForm
 
@@ -19,3 +19,10 @@ def inicio(request):
         "form": form,
         "productos": productos,
     })
+
+def eliminar_producto(request, producto_id):
+    if request.method == "POST":
+        producto = get_object_or_404(Producto, id=producto_id)
+        producto.delete()
+
+    return redirect("inicio")
