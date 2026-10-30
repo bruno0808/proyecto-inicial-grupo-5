@@ -84,8 +84,10 @@
                 {% else %}
                     <p class="normal">Stock suficiente por ahora</p>
                 {% endif %}
-                
-                <form method="post"
+            {% else %}
+                <p>No se puede calcular la predicción.</p>
+            {% endif %}
+            <form method="post"
                     action="{% url 'eliminar_producto' producto.id %}">
                     {% csrf_token %}
                     <button type="submit"
@@ -93,9 +95,6 @@
                         Eliminar producto
                     </button>
                 </form>
-            {% else %}
-                <p>No se puede calcular la predicción.</p>
-            {% endif %}
         </div>
     {% empty %}
         <p>Aún no has agregado productos.</p>
