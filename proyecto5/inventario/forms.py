@@ -19,3 +19,13 @@ class ProductoForm(forms.ModelForm):
                 attrs={"type": "time"}
             )
         }
+
+    def clean_nombre(self):
+        nombre = self.cleaned_data["nombre"]
+
+        if Producto.objects.filter(nombre__iexact=nombre).exists():
+            raise forms.ValidationError(
+                "Ya existe un producto con ese nombre."
+            )
+
+        return nombre
