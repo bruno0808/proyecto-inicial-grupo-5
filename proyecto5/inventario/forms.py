@@ -3,6 +3,11 @@ from .models import Producto
 
 
 class ProductoForm(forms.ModelForm):
+
+    def __init__(self, *args, **kwargs):
+        self.usuario = kwargs.pop("usuario")
+        super().__init__(*args, **kwargs)
+
     class Meta:
         model = Producto
         fields = [
@@ -23,9 +28,14 @@ class ProductoForm(forms.ModelForm):
     def clean_nombre(self):
         nombre = self.cleaned_data["nombre"]
 
-        if Producto.objects.filter(nombre__iexact=nombre).exists():
+        existe = Producto.objects.filter(
+            usuario=self.usuario,
+            nombre__iexact=nombre
+        ).exists()
+
+        if existe:
             raise forms.ValidationError(
-                "Ya existe un producto con ese nombre."
+                "Ya tienes un producto con ese nombre."
             )
 
         return nombre

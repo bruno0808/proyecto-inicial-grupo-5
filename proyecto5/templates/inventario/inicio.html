@@ -2,6 +2,14 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+    <h1>Control de inventario</h1>
+
+    <p>Bienvenido, {{ request.user.username }}</p>
+
+    <form method="post" action="{% url 'logout' %}">
+        {% csrf_token %}
+        <button type="submit">Cerrar sesión</button>
+    </form>
     <meta charset="UTF-8">
     <title>Control de inventario</title>
     <style>

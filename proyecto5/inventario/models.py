@@ -1,8 +1,16 @@
 
 from django.db import models
+from django.contrib.auth.models import User
 
 
-class Producto(models.Model):
+class Producto(models.Model):\
+
+    usuario = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="productos"
+    )
+
     nombre = models.CharField(max_length=100,unique=True)
     stock = models.PositiveIntegerField()
     consumo_diario = models.FloatField()
@@ -10,6 +18,14 @@ class Producto(models.Model):
         help_text="Cada cuántos días se compra normalmente"
     )
     hora_promedio_compra = models.TimeField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["usuario", "nombre"],
+                name="producto_unico_por_usuario"
+            )
+        ]
 
     def dias_restantes(self):
         if self.consumo_diario <= 0:
