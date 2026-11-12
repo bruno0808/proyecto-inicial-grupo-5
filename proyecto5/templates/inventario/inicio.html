@@ -50,6 +50,10 @@
         .normal {
             color: #167647;
         }
+
+        .historial-compras {
+            padding-left: 20px;
+        }
     </style>
 </head>
 <body>
@@ -78,6 +82,35 @@
             <p>Hora promedio:
                 {{ producto.hora_promedio_compra|time:"H:i" }}
             </p>
+
+            <h4>Registrar compra</h4>
+            <form method="post"
+                    action="{% url 'registrar_compra' producto.id %}">
+                {% csrf_token %}
+                <label for="cantidad-{{ producto.id }}">Cantidad comprada</label>
+                <input id="cantidad-{{ producto.id }}"
+                        type="number"
+                        name="cantidad"
+                        min="1"
+                        required
+                        value="{{ producto.compra_form.cantidad.value|default_if_none:'' }}">
+                {% if producto.compra_form.cantidad.errors %}
+                    <p class="alerta">{{ producto.compra_form.cantidad.errors }}</p>
+                {% endif %}
+                <button type="submit">Guardar compra</button>
+            </form>
+
+            <h4>Historial de compras</h4>
+            {% if producto.historial_compras %}
+                <ul class="historial-compras">
+                    {% for compra in producto.historial_compras %}
+                        <li>{{ compra.fecha_compra|date:"d/m/Y" }}:
+                            {{ compra.cantidad }} unidades</li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p>Aún no hay compras registradas.</p>
+            {% endif %}
 
             {% if producto.dias_restantes is not None %}
                 <p>

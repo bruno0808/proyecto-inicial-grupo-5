@@ -1,6 +1,7 @@
 
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils import timezone
 
 
 class Producto(models.Model):\
@@ -39,3 +40,25 @@ class Producto(models.Model):\
 
     def __str__(self):
         return self.nombre
+
+
+class Compra(models.Model):
+    producto = models.ForeignKey(
+        Producto,
+        on_delete=models.CASCADE,
+        related_name="compras"
+    )
+    cantidad = models.PositiveIntegerField()
+    fecha_compra = models.DateField(default=timezone.localdate)
+
+    class Meta:
+        ordering = ["-fecha_compra", "-id"]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(cantidad__gt=0),
+                name="compra_cantidad_positiva"
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.producto.nombre}: {self.cantidad} ({self.fecha_compra})"

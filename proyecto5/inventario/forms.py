@@ -1,5 +1,5 @@
 from django import forms
-from .models import Producto
+from .models import Compra, Producto
 
 
 class ProductoForm(forms.ModelForm):
@@ -39,3 +39,17 @@ class ProductoForm(forms.ModelForm):
             )
 
         return nombre
+
+
+class CompraForm(forms.ModelForm):
+    cantidad = forms.IntegerField(
+        min_value=1,
+        error_messages={
+            "min_value": "La cantidad debe ser mayor que cero."
+        },
+        widget=forms.NumberInput(attrs={"min": 1})
+    )
+
+    class Meta:
+        model = Compra
+        fields = ["cantidad"]

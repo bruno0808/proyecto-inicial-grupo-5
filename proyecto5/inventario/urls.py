@@ -15,4 +15,9 @@ urlpatterns = [
         views.eliminar_producto,
         name="eliminar_producto"
     ),
+    path(
+        "comprar/<int:producto_id>/",
+        views.registrar_compra,
+        name="registrar_compra"
+    ),
 ]
