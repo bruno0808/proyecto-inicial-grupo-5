@@ -48,7 +48,7 @@ class Compra(models.Model):
         on_delete=models.CASCADE,
         related_name="compras"
     )
-    cantidad = models.PositiveIntegerField()
+    cantidad = models.IntegerField()
     fecha_compra = models.DateField(default=timezone.localdate)
 
     class Meta:
@@ -62,3 +62,25 @@ class Compra(models.Model):
 
     def __str__(self):
         return f"{self.producto.nombre}: {self.cantidad} ({self.fecha_compra})"
+
+
+class Venta(models.Model):
+    producto = models.ForeignKey(
+        Producto,
+        on_delete=models.CASCADE,
+        related_name="ventas"
+    )
+    cantidad = models.IntegerField()
+    fecha_venta = models.DateField(default=timezone.localdate)
+
+    class Meta:
+        ordering = ["-fecha_venta", "-id"]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(cantidad__gt=0),
+                name="venta_cantidad_positiva"
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.producto.nombre}: {self.cantidad} ({self.fecha_venta})"

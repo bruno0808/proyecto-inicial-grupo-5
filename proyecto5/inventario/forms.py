@@ -53,3 +53,25 @@ class CompraForm(forms.ModelForm):
     class Meta:
         model = Compra
         fields = ["cantidad"]
+
+
+class ConsumoForm(forms.Form):
+    cantidad = forms.IntegerField(
+        min_value=1,
+        error_messages={
+            "min_value": "La cantidad debe ser mayor que cero."
+        },
+        widget=forms.NumberInput(attrs={"min": 1})
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.producto = kwargs.pop("producto")
+        super().__init__(*args, **kwargs)
+
+    def clean_cantidad(self):
+        cantidad = self.cleaned_data["cantidad"]
+        if cantidad > self.producto.stock:
+            raise forms.ValidationError(
+                "No puedes quitar más unidades que las disponibles."
+            )
+        return cantidad

@@ -83,11 +83,27 @@
                 {{ producto.hora_promedio_compra|time:"H:i" }}
             </p>
 
-            <h4>Registrar compra</h4>
+            <div class="acciones-stock">
+                <button type="button"
+                        aria-controls="compra-{{ producto.id }}"
+                        aria-expanded="{% if producto.compra_form.cantidad.errors %}true{% else %}false{% endif %}"
+                        onclick="alternarFormularioStock('compra-{{ producto.id }}', 'consumo-{{ producto.id }}', this)">
+                    Agregar
+                </button>
+                <button type="button"
+                        aria-controls="consumo-{{ producto.id }}"
+                        aria-expanded="{% if producto.consumo_form.cantidad.errors %}true{% else %}false{% endif %}"
+                        onclick="alternarFormularioStock('consumo-{{ producto.id }}', 'compra-{{ producto.id }}', this)">
+                    Quitar
+                </button>
+            </div>
+
             <form method="post"
+                    id="compra-{{ producto.id }}"
+                    {% if not producto.compra_form.cantidad.errors %}hidden{% endif %}
                     action="{% url 'registrar_compra' producto.id %}">
                 {% csrf_token %}
-                <label for="cantidad-{{ producto.id }}">Cantidad comprada</label>
+                <label for="cantidad-{{ producto.id }}">Cantidad agregada</label>
                 <input id="cantidad-{{ producto.id }}"
                         type="number"
                         name="cantidad"
@@ -98,6 +114,25 @@
                     <p class="alerta">{{ producto.compra_form.cantidad.errors }}</p>
                 {% endif %}
                 <button type="submit">Guardar compra</button>
+            </form>
+
+            <form method="post"
+                    id="consumo-{{ producto.id }}"
+                    {% if not producto.consumo_form.cantidad.errors %}hidden{% endif %}
+                    action="{% url 'registrar_consumo' producto.id %}">
+                {% csrf_token %}
+                <label for="consumo-{{ producto.id }}">Cantidad a quitar</label>
+                <input id="consumo-{{ producto.id }}"
+                        type="number"
+                        name="cantidad"
+                        min="1"
+                        max="{{ producto.stock }}"
+                        required
+                        value="{{ producto.consumo_form.cantidad.value|default_if_none:'' }}">
+                {% if producto.consumo_form.cantidad.errors %}
+                    <p class="alerta">{{ producto.consumo_form.cantidad.errors }}</p>
+                {% endif %}
+                <button type="submit">Quitar unidades</button>
             </form>
 
             <h4>Historial de compras</h4>
@@ -140,5 +175,24 @@
     {% empty %}
         <p>Aún no has agregado productos.</p>
     {% endfor %}
+
+    <script>
+        function alternarFormularioStock(id, otroId, boton) {
+            const formulario = document.getElementById(id);
+            const otroFormulario = document.getElementById(otroId);
+            const abrir = formulario.hidden;
+
+            formulario.hidden = !abrir;
+            otroFormulario.hidden = true;
+            boton.setAttribute("aria-expanded", abrir);
+            document.querySelector(
+                '[aria-controls="' + otroId + '"]'
+            ).setAttribute("aria-expanded", "false");
+
+            if (abrir) {
+                formulario.querySelector('input[name="cantidad"]').focus();
+            }
+        }
+    </script>
 </body>
 </html>

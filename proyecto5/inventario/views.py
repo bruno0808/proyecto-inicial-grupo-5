@@ -9,8 +9,8 @@ from django.contrib.auth.forms import (
     AuthenticationForm
 )
 
-from .models import Compra, Producto
-from .forms import CompraForm, ProductoForm
+from .models import Compra, Producto, Venta
+from .forms import CompraForm, ConsumoForm, ProductoForm
 
 
 # REGISTRO
@@ -91,15 +91,17 @@ def render_inicio(
     request,
     producto_form,
     compra_form=None,
-    compra_producto_id=None
+    compra_producto_id=None,
+    consumo_form=None,
+    consumo_producto_id=None
 ):
     productos = Producto.objects.filter(
         usuario=request.user
     ).prefetch_related(
         Prefetch(
-            "compras",
-            queryset=Compra.objects.order_by("-fecha_compra", "-id"),
-            to_attr="historial_compras"
+            "ventas",
+            queryset=Venta.objects.order_by("-fecha_venta", "-id"),
+            to_attr="historial_ventas"
         )
     )
 
@@ -108,6 +110,10 @@ def render_inicio(
             producto.compra_form = compra_form
         else:
             producto.compra_form = CompraForm()
+        if producto.id == consumo_producto_id:
+            producto.consumo_form = consumo_form
+        else:
+            producto.consumo_form = ConsumoForm(producto=producto)
 
     return render(request, "inventario/inicio.html", {
         "form": producto_form,
@@ -145,6 +151,50 @@ def registrar_compra(request, producto_id):
         ProductoForm(usuario=request.user),
         compra_form=form,
         compra_producto_id=producto.id
+    )
+
+
+# QUITAR STOCK
+@login_required
+def registrar_consumo(request, producto_id):
+    if request.method != "POST":
+        return redirect("inicio")
+
+    producto = get_object_or_404(
+        Producto,
+        id=producto_id,
+        usuario=request.user
+    )
+    form = ConsumoForm(request.POST, producto=producto)
+
+    if form.is_valid():
+        cantidad = form.cleaned_data["cantidad"]
+        with transaction.atomic():
+            actualizado = Producto.objects.filter(
+                id=producto.id,
+                usuario=request.user,
+                stock__gte=cantidad
+            ).update(stock=F("stock") - cantidad)
+
+            if actualizado:
+                Venta.objects.create(
+                    producto=producto,
+                    cantidad=cantidad
+                )
+
+        if actualizado:
+            return redirect("inicio")
+
+        form.add_error(
+            "cantidad",
+            "No puedes quitar más unidades que las disponibles."
+        )
+
+    return render_inicio(
+        request,
+        ProductoForm(usuario=request.user),
+        consumo_form=form,
+        consumo_producto_id=producto.id
     )
 
 

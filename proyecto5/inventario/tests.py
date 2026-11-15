@@ -3,8 +3,8 @@ from django.contrib.auth.models import User
 from django.test import RequestFactory, TestCase
 from django.urls import reverse
 from unittest.mock import patch
-from .models import Compra, Producto
-from .views import registrar_compra
+from .models import Compra, Producto, Venta
+from .views import registrar_compra, registrar_consumo
 
 
 class RegistrarCompraTests(TestCase):
@@ -71,3 +71,51 @@ class RegistrarCompraTests(TestCase):
             registrar_compra(request, self.producto.id)
 
         self.assertFalse(Compra.objects.filter(producto=self.producto).exists())
+
+    def test_consumo_disminuye_stock(self):
+        response = self.client.post(
+            reverse("registrar_consumo", args=[self.producto.id]),
+            {"cantidad": 4}
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], reverse("inicio"))
+        self.producto.refresh_from_db()
+        venta = Venta.objects.get(producto=self.producto)
+        self.assertEqual(self.producto.stock, 6)
+        self.assertEqual(venta.cantidad, 4)
+        self.assertIsNotNone(venta.fecha_venta)
+
+    def test_consumo_mayor_al_stock_no_lo_disminuye(self):
+        with patch(
+            "inventario.views.render_inicio",
+            return_value=HttpResponse()
+        ) as render_inicio:
+            response = self.client.post(
+                reverse("registrar_consumo", args=[self.producto.id]),
+                {"cantidad": 11}
+            )
+
+        self.assertEqual(response.status_code, 200)
+        consumo_form = render_inicio.call_args.kwargs["consumo_form"]
+        self.assertFalse(consumo_form.is_valid())
+        self.producto.refresh_from_db()
+        self.assertEqual(self.producto.stock, 10)
+        self.assertFalse(Venta.objects.filter(producto=self.producto).exists())
+
+    def test_usuario_no_puede_quitar_stock_a_producto_ajeno(self):
+        otro_usuario = User.objects.create_user(
+            username="otro",
+            password="contrasena-segura"
+        )
+        request = RequestFactory().post(
+            reverse("registrar_consumo", args=[self.producto.id]),
+            {"cantidad": 5}
+        )
+        request.user = otro_usuario
+
+        with self.assertRaises(Http404):
+            registrar_consumo(request, self.producto.id)
+
+        self.producto.refresh_from_db()
+        self.assertEqual(self.producto.stock, 10)
