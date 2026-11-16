@@ -1,10 +1,15 @@
+from datetime import datetime, time, timedelta, timezone as datetime_timezone
+from unittest.mock import patch
+
 from django.http import Http404, HttpResponse
 from django.contrib.auth.models import User
 from django.test import RequestFactory, TestCase
 from django.urls import reverse
-from unittest.mock import patch
+from django.utils import timezone
+
+from .forms import ProductoForm
 from .models import Compra, Producto, Venta
-from .views import registrar_compra, registrar_consumo
+from .views import registrar_compra, registrar_consumo, render_inicio
 
 
 class RegistrarCompraTests(TestCase):
@@ -17,9 +22,7 @@ class RegistrarCompraTests(TestCase):
             usuario=self.usuario,
             nombre="Arroz",
             stock=10,
-            consumo_diario=1,
-            frecuencia_compra=7,
-            hora_promedio_compra="09:00"
+            consumo_diario=1
         )
         self.client.force_login(self.usuario)
 
@@ -85,6 +88,108 @@ class RegistrarCompraTests(TestCase):
         self.assertEqual(self.producto.stock, 6)
         self.assertEqual(venta.cantidad, 4)
         self.assertIsNotNone(venta.fecha_venta)
+        self.assertIsNotNone(venta.hora_venta)
+
+    def test_consumo_registra_hora_en_zona_chilena(self):
+        instante_utc = datetime(
+            2026, 11, 15, 21, 0, tzinfo=datetime_timezone.utc
+        )
+        with patch(
+            "inventario.views.timezone.now",
+            return_value=instante_utc
+        ):
+            self.client.post(
+                reverse("registrar_consumo", args=[self.producto.id]),
+                {"cantidad": 1}
+            )
+
+        venta = Venta.objects.get(producto=self.producto)
+        self.assertEqual(venta.fecha_venta, instante_utc.date())
+        self.assertEqual(venta.hora_venta, time(18, 0))
+
+    def test_prediccion_se_actualiza_con_el_historial_de_ventas(self):
+        Venta.objects.create(
+            producto=self.producto,
+            cantidad=5,
+            fecha_venta=timezone.localdate() - timedelta(days=4)
+        )
+
+        self.client.post(
+            reverse("registrar_consumo", args=[self.producto.id]),
+            {"cantidad": 2}
+        )
+
+        self.producto.refresh_from_db()
+        self.assertAlmostEqual(self.producto.consumo_diario_promedio(), 1.4)
+        self.assertAlmostEqual(self.producto.dias_restantes(), 8 / 1.4)
+
+    def test_prediccion_usa_consumo_configurado_si_no_hay_ventas(self):
+        self.assertEqual(self.producto.consumo_diario_promedio(), 1)
+        self.assertEqual(self.producto.dias_restantes(), 10)
+
+    def test_formulario_no_pide_hora_promedio_de_compra(self):
+        form = ProductoForm(
+            data={
+                "nombre": "Frijoles",
+                "stock": 5,
+                "consumo_diario": 1
+            },
+            usuario=self.usuario
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertNotIn("hora_promedio_compra", form.fields)
+        self.assertNotIn("frecuencia_compra", form.fields)
+
+    def test_hora_promedio_se_calcula_con_el_historial_de_ventas(self):
+        ahora = timezone.localtime()
+        Venta.objects.create(
+            producto=self.producto,
+            cantidad=1,
+            fecha_venta=ahora.date(),
+            hora_venta=ahora.replace(
+                hour=9, minute=0, second=0, microsecond=0
+            ).time()
+        )
+        Venta.objects.create(
+            producto=self.producto,
+            cantidad=1,
+            fecha_venta=ahora.date(),
+            hora_venta=ahora.replace(
+                hour=11, minute=0, second=0, microsecond=0
+            ).time()
+        )
+
+        self.assertEqual(self.producto.hora_promedio_compra, time(10, 0))
+
+    def test_hora_promedio_considera_ventas_cercanas_a_medianoche(self):
+        ahora = timezone.localtime()
+        Venta.objects.create(
+            producto=self.producto,
+            cantidad=1,
+            fecha_venta=ahora.date(),
+            hora_venta=ahora.replace(
+                hour=23, minute=0, second=0, microsecond=0
+            ).time()
+        )
+        Venta.objects.create(
+            producto=self.producto,
+            cantidad=1,
+            fecha_venta=ahora.date(),
+            hora_venta=ahora.replace(
+                hour=1, minute=0, second=0, microsecond=0
+            ).time()
+        )
+
+        self.assertEqual(self.producto.hora_promedio_compra, time(0, 0))
+
+    def test_hora_promedio_no_disponible_sin_ventas(self):
+        self.assertIsNone(self.producto.hora_promedio_compra)
+
+    def test_hora_promedio_ignora_ventas_historicas_sin_hora(self):
+        Venta.objects.create(producto=self.producto, cantidad=1)
+
+        self.assertIsNone(self.producto.hora_promedio_compra)
 
     def test_consumo_mayor_al_stock_no_lo_disminuye(self):
         with patch(
@@ -119,3 +224,54 @@ class RegistrarCompraTests(TestCase):
 
         self.producto.refresh_from_db()
         self.assertEqual(self.producto.stock, 10)
+
+    def test_historial_compras_se_carga_para_mostrarlo(self):
+        compra = Compra.objects.create(
+            producto=self.producto,
+            cantidad=3
+        )
+        request = RequestFactory().get(reverse("inicio"))
+        request.user = self.usuario
+
+        with patch("inventario.views.render", return_value=HttpResponse()) as render:
+            render_inicio(request, ProductoForm(usuario=self.usuario))
+
+        productos = list(render.call_args.args[2]["productos"])
+        self.assertEqual(productos[0].historial_compras, [compra])
+
+    def test_otro_usuario_puede_usar_el_mismo_nombre_de_producto(self):
+        otro_usuario = User.objects.create_user(
+            username="otro",
+            password="contrasena-segura"
+        )
+        self.client.force_login(otro_usuario)
+
+        response = self.client.post(
+            reverse("inicio"),
+            {
+                "nombre": self.producto.nombre,
+                "stock": 5,
+                "consumo_diario": 1
+            }
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(
+            Producto.objects.filter(
+                usuario=otro_usuario,
+                nombre=self.producto.nombre
+            ).exists()
+        )
+
+    def test_mismo_usuario_no_puede_repetir_nombre_de_producto(self):
+        form = ProductoForm(
+            data={
+                "nombre": "arroz",
+                "stock": 5,
+                "consumo_diario": 1
+            },
+            usuario=self.usuario
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("nombre", form.errors)

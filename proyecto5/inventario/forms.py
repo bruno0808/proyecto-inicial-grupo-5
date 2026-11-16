@@ -14,16 +14,7 @@ class ProductoForm(forms.ModelForm):
             "nombre",
             "stock",
             "consumo_diario",
-            "frecuencia_compra",
-            "hora_promedio_compra",
         ]
-
-        widgets = {
-            "hora_promedio_compra": forms.TimeInput(
-                format="%H:%M",
-                attrs={"type": "time"}
-            )
-        }
 
     def clean_nombre(self):
         nombre = self.cleaned_data["nombre"]

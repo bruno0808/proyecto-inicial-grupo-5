@@ -8,6 +8,7 @@ from django.contrib.auth.forms import (
     UserCreationForm,
     AuthenticationForm
 )
+from django.utils import timezone
 
 from .models import Compra, Producto, Venta
 from .forms import CompraForm, ConsumoForm, ProductoForm
@@ -99,6 +100,11 @@ def render_inicio(
         usuario=request.user
     ).prefetch_related(
         Prefetch(
+            "compras",
+            queryset=Compra.objects.order_by("-fecha_compra", "-id"),
+            to_attr="historial_compras"
+        ),
+        Prefetch(
             "ventas",
             queryset=Venta.objects.order_by("-fecha_venta", "-id"),
             to_attr="historial_ventas"
@@ -177,9 +183,12 @@ def registrar_consumo(request, producto_id):
             ).update(stock=F("stock") - cantidad)
 
             if actualizado:
+                fecha_hora_venta = timezone.localtime()
                 Venta.objects.create(
                     producto=producto,
-                    cantidad=cantidad
+                    cantidad=cantidad,
+                    fecha_venta=fecha_hora_venta.date(),
+                    hora_venta=fecha_hora_venta.time()
                 )
 
         if actualizado:

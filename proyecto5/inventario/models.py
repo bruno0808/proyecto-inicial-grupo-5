@@ -1,4 +1,7 @@
 
+from datetime import time
+import math
+
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
@@ -12,13 +15,9 @@ class Producto(models.Model):\
         related_name="productos"
     )
 
-    nombre = models.CharField(max_length=100,unique=True)
+    nombre = models.CharField(max_length=100)
     stock = models.PositiveIntegerField()
     consumo_diario = models.FloatField()
-    frecuencia_compra = models.PositiveIntegerField(
-        help_text="Cada cuántos días se compra normalmente"
-    )
-    hora_promedio_compra = models.TimeField()
 
     class Meta:
         constraints = [
@@ -29,10 +28,60 @@ class Producto(models.Model):\
         ]
 
     def dias_restantes(self):
-        if self.consumo_diario <= 0:
+        consumo_diario = self.consumo_diario_promedio()
+        if consumo_diario <= 0:
             return None
 
-        return self.stock / self.consumo_diario
+        return self.stock / consumo_diario
+
+    def consumo_diario_promedio(self):
+        ventas = getattr(self, "historial_ventas", None)
+        if ventas is None:
+            ventas = list(self.ventas.all())
+
+        if not ventas:
+            return self.consumo_diario
+
+        unidades_vendidas = sum(venta.cantidad for venta in ventas)
+        primera_venta = min(
+            venta.fecha_venta for venta in ventas
+        )
+        dias_transcurridos = max(
+            (timezone.localdate() - primera_venta).days + 1,
+            1
+        )
+        return unidades_vendidas / dias_transcurridos
+
+    @property
+    def hora_promedio_compra(self):
+        ventas = getattr(self, "historial_ventas", None)
+        if ventas is None:
+            ventas = list(self.ventas.all())
+
+        if not ventas:
+            return None
+
+        angulos = []
+        for venta in ventas:
+            if venta.hora_venta is None:
+                continue
+            minutos_del_dia = venta.hora_venta.hour * 60 + venta.hora_venta.minute
+            angulos.append(2 * math.pi * minutos_del_dia / 1440)
+        if not angulos:
+            return None
+
+        seno = sum(math.sin(angulo) for angulo in angulos)
+        coseno = sum(math.cos(angulo) for angulo in angulos)
+
+        if math.isclose(seno, 0, abs_tol=1e-12) and math.isclose(
+            coseno, 0, abs_tol=1e-12
+        ):
+            return None
+
+        minutos = round(
+            (math.atan2(seno, coseno) % (2 * math.pi)) * 1440 / (2 * math.pi)
+        ) % 1440
+        return time(minutos // 60, minutos % 60)
 
     def cerca_de_agotarse(self):
         dias = self.dias_restantes()
@@ -72,6 +121,7 @@ class Venta(models.Model):
     )
     cantidad = models.IntegerField()
     fecha_venta = models.DateField(default=timezone.localdate)
+    hora_venta = models.TimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["-fecha_venta", "-id"]

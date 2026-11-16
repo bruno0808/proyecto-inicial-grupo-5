@@ -75,12 +75,15 @@
             <h3>{{ producto.nombre }}</h3>
 
             <p>Stock actual: {{ producto.stock }}</p>
-            <p>Consumo diario: {{ producto.consumo_diario }}</p>
-            <p>Frecuencia de compra:
-                cada {{ producto.frecuencia_compra }} días
+            <p>Consumo diario estimado:
+                {{ producto.consumo_diario_promedio|floatformat:1 }}
             </p>
             <p>Hora promedio:
-                {{ producto.hora_promedio_compra|time:"H:i" }}
+                {% if producto.hora_promedio_compra %}
+                    {{ producto.hora_promedio_compra|time:"H:i" }}
+                {% else %}
+                    Se calculará al registrar nuevas ventas.
+                {% endif %}
             </p>
 
             <div class="acciones-stock">
@@ -134,6 +137,18 @@
                 {% endif %}
                 <button type="submit">Quitar unidades</button>
             </form>
+
+            <h4>Historial de ventas</h4>
+            {% if producto.historial_ventas %}
+                <ul>
+                    {% for venta in producto.historial_ventas %}
+                        <li>{{ venta.fecha_venta|date:"d/m/Y" }}:
+                            {{ venta.cantidad }} unidades</li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p>Aún no hay ventas registradas.</p>
+            {% endif %}
 
             <h4>Historial de compras</h4>
             {% if producto.historial_compras %}
