@@ -54,10 +54,76 @@
         .historial-compras {
             padding-left: 20px;
         }
+
+        .producto-resumen {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr) auto auto;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            list-style: none;
+        }
+
+        .producto-resumen::-webkit-details-marker {
+            display: none;
+        }
+
+        .producto-resumen::before {
+            width: 0;
+            height: 0;
+            border-top: 5px solid transparent;
+            border-bottom: 5px solid transparent;
+            border-left: 7px solid currentColor;
+            content: "";
+            transition: transform 0.2s ease;
+        }
+
+        .producto[open] .producto-resumen::before {
+            transform: rotate(90deg);
+        }
+
+        .producto-nombre {
+            overflow: hidden;
+            font-size: 1.17em;
+            font-weight: bold;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .producto-stock,
+        .producto-estado {
+            white-space: nowrap;
+        }
+
+        .producto-estado {
+            font-weight: bold;
+        }
+
+        .estado-alerta {
+            color: #b42318;
+        }
+
+        .estado-normal {
+            color: #167647;
+        }
+
+        .estado-sin-prediccion {
+            color: #555;
+        }
+
+        @media (max-width: 520px) {
+            .producto {
+                padding: 14px;
+            }
+
+            .producto-resumen {
+                gap: 6px;
+                font-size: 0.9em;
+            }
+        }
     </style>
 </head>
 <body>
-    <h1>Control de inventario</h1>
     <p>Registra productos y predice cuándo se agotarán.</p>
 
     <h2>Agregar producto</h2>
@@ -71,8 +137,23 @@
     <h2>Mis productos</h2>
 
     {% for producto in productos %}
-        <div class="producto">
-            <h3>{{ producto.nombre }}</h3>
+        <details class="producto"
+                {% if producto.compra_form.cantidad.errors or producto.consumo_form.cantidad.errors %}open{% endif %}>
+            <summary class="producto-resumen">
+                <span class="producto-nombre" title="{{ producto.nombre }}">{{ producto.nombre }}</span>
+                <span class="producto-stock">Stock: {{ producto.stock }}</span>
+                <span class="producto-estado {% if producto.stock == 0 or producto.cerca_de_agotarse %}estado-alerta{% elif producto.dias_restantes is None %}estado-sin-prediccion{% else %}estado-normal{% endif %}">
+                    {% if producto.stock == 0 %}
+                        Agotado
+                    {% elif producto.dias_restantes is None %}
+                        Sin predicción
+                    {% elif producto.cerca_de_agotarse %}
+                        Cerca de agotarse
+                    {% else %}
+                        Stock suficiente
+                    {% endif %}
+                </span>
+            </summary>
 
             <p>Stock actual: {{ producto.stock }}</p>
             <p>Consumo diario estimado:
@@ -167,16 +248,18 @@
                     Días hasta agotarse:
                     {{ producto.dias_restantes|floatformat:1 }}
                 </p>
+            {% endif %}
 
-                {% if producto.cerca_de_agotarse %}
-                    <p class="alerta">
-                        ⚠️ ¡Este producto está cerca de agotarse!
-                    </p>
-                {% else %}
-                    <p class="normal">Stock suficiente por ahora</p>
-                {% endif %}
-            {% else %}
+            {% if producto.stock == 0 %}
+                <p class="alerta">¡Producto agotado!</p>
+            {% elif producto.dias_restantes is None %}
                 <p>No se puede calcular la predicción.</p>
+            {% elif producto.cerca_de_agotarse %}
+                <p class="alerta">
+                    ⚠️ ¡Este producto está cerca de agotarse!
+                </p>
+            {% else %}
+                <p class="normal">Stock suficiente por ahora</p>
             {% endif %}
             <form method="post"
                     action="{% url 'eliminar_producto' producto.id %}">
@@ -186,7 +269,7 @@
                         Eliminar producto
                     </button>
                 </form>
-        </div>
+        </details>
     {% empty %}
         <p>Aún no has agregado productos.</p>
     {% endfor %}

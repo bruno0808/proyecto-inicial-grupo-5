@@ -59,6 +59,45 @@ class RegistrarCompraTests(TestCase):
         self.assertEqual(self.producto.stock, 10)
         self.assertFalse(Compra.objects.filter(producto=self.producto).exists())
 
+    def test_producto_muestra_nombre_stock_y_estado_al_cerrarse(self):
+        response = self.client.get(reverse("inicio"))
+        contenido = response.content.decode()
+
+        self.assertRegex(
+            contenido,
+            r'<details class="producto"\s*>\s*<summary class="producto-resumen">'
+        )
+        self.assertContains(response, "Arroz")
+        self.assertContains(response, "Stock: 10")
+        self.assertContains(response, "Stock suficiente")
+
+    def test_producto_sin_stock_muestra_agotado_aunque_no_haya_prediccion(self):
+        self.producto.stock = 0
+        self.producto.consumo_diario = 0
+        self.producto.save(update_fields=["stock", "consumo_diario"])
+
+        response = self.client.get(reverse("inicio"))
+        contenido = response.content.decode()
+
+        self.assertRegex(
+            contenido,
+            r'<span class="producto-estado estado-alerta">\s*Agotado\s*</span>'
+        )
+        self.assertContains(response, "¡Producto agotado!")
+        self.assertNotContains(response, "Sin predicción")
+        self.assertNotContains(response, "No se puede calcular la predicción.")
+
+    def test_producto_se_abre_si_el_formulario_de_compra_tiene_errores(self):
+        response = self.client.post(
+            reverse("registrar_compra", args=[self.producto.id]),
+            {"cantidad": 0}
+        )
+
+        self.assertRegex(
+            response.content.decode(),
+            r'<details class="producto"\s+open>'
+        )
+
     def test_usuario_no_puede_registrar_compra_a_producto_ajeno(self):
         otro_usuario = User.objects.create_user(
             username="otro",
